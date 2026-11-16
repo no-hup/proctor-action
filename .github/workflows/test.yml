@@ -1,0 +1,171 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-clean:
+    name: Test Clean PR (enforce=true -> PASS)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create baseline commit
+        run: |
+          git checkout -b fixture-base
+          mkdir -p tests
+          cat << 'EOF' > tests/test_calc.py
+          def test_addition():
+              assert 1 + 1 == 2
+          EOF
+          git add tests/test_calc.py
+          git commit -m "chore: add test baseline"
+
+      - name: Create clean feature commit
+        run: |
+          git checkout -b fixture-clean
+          cat << 'EOF' >> tests/test_calc.py
+
+          def test_subtraction():
+              assert 2 - 1 == 1
+          EOF
+          git add tests/test_calc.py
+          git commit -m "feat: add subtraction test"
+
+      - name: Run agent-proctor action (clean, enforce=true)
+        id: run_clean
+        uses: ./
+        with:
+          base-ref: fixture-base
+          head-ref: fixture-clean
+          enforce: 'true'
+          sarif-file: clean-results.sarif
+
+      - name: Verify clean results
+        run: |
+          if [ ! -f clean-results.sarif ]; then
+            echo "Error: clean-results.sarif was not created!"
+            exit 1
+          fi
+          echo "Clean SARIF created successfully."
+
+  test-observe-mode:
+    name: Test Observe Mode (cheat detected, enforce=false -> exits 0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create baseline commit
+        run: |
+          git checkout -b fixture-base-obs
+          mkdir -p tests
+          cat << 'EOF' > tests/test_calc.py
+          def test_addition():
+              assert 1 + 1 == 2
+          EOF
+          git add tests/test_calc.py
+          git commit -m "chore: add test baseline"
+
+      - name: Create cheated commit
+        run: |
+          git checkout -b fixture-cheat-obs
+          cat << 'EOF' > tests/test_calc.py
+          def test_addition():
+              assert True
+          EOF
+          git add tests/test_calc.py
+          git commit -m "cheat: weaken assertion"
+
+      - name: Run agent-proctor action in Observe Mode (enforce=false)
+        id: run_observe
+        uses: ./
+        with:
+          base-ref: fixture-base-obs
+          head-ref: fixture-cheat-obs
+          enforce: 'false'
+          sarif-file: observe-results.sarif
+
+      - name: Verify Observe Mode exited 0 and recorded findings in SARIF
+        run: |
+          if [ ! -f observe-results.sarif ]; then
+            echo "Error: observe-results.sarif was not created!"
+            exit 1
+          fi
+          if ! grep -q "PROCTOR-001" observe-results.sarif; then
+            echo "Error: PROCTOR-001 finding not found in observe SARIF!"
+            exit 1
+          fi
+          echo "Observe Mode successfully passed CI while reporting PROCTOR-001."
+
+  test-enforce-mode:
+    name: Test Enforce Mode (cheat detected, enforce=true -> BLOCKED exit 2)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create baseline commit
+        run: |
+          git checkout -b fixture-base-enf
+          mkdir -p tests
+          cat << 'EOF' > tests/test_calc.py
+          def test_addition():
+              assert 1 + 1 == 2
+          EOF
+          git add tests/test_calc.py
+          git commit -m "chore: add test baseline"
+
+      - name: Create cheated commit
+        run: |
+          git checkout -b fixture-cheat-enf
+          cat << 'EOF' > tests/test_calc.py
+          def test_addition():
+              assert True
+          EOF
+          git add tests/test_calc.py
+          git commit -m "cheat: weaken assertion"
+
+      - name: Run agent-proctor action in Enforce Mode (enforce=true)
+        id: run_enforce
+        continue-on-error: true
+        uses: ./
+        with:
+          base-ref: fixture-base-enf
+          head-ref: fixture-cheat-enf
+          enforce: 'true'
+          sarif-file: enforce-results.sarif
+
+      - name: Verify Enforce Mode blocked the cheated PR
+        run: |
+          if [ "${{ steps.run_enforce.outcome }}" != "failure" ]; then
+            echo "Error: Expected proctor to fail on cheated commit when enforce=true, but outcome was ${{ steps.run_enforce.outcome }}"
+            exit 1
+          fi
+          echo "Enforce Mode successfully blocked the PR (outcome=failure)."

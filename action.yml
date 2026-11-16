@@ -15,6 +15,10 @@ inputs:
     description: 'Head git commit SHA or branch'
     required: false
     default: ${{ github.event.pull_request.head.sha || github.sha || 'HEAD' }}
+  enforce:
+    description: 'Enforce blocking exit code (false = Observe Mode: reports findings to step summary but exits 0)'
+    required: false
+    default: 'false'
   strict:
     description: 'Treat Report findings as hard BLOCK (exit 1) for autonomous agent PRs'
     required: false
@@ -126,4 +130,30 @@ runs:
           ARGS="$ARGS --experimental-probe"
         fi
 
-        proctor scan $ARGS
+        EXIT_CODE=0
+        proctor scan $ARGS || EXIT_CODE=$?
+
+        # Append clean markdown step summary if running in GitHub Actions
+        if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+          echo "### 🛡️ agent-proctor Summary" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "✅ **All test suite integrity and anticheat checks passed.**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ **agent-proctor detected test modifications or anticheat violations.** (exit code $EXIT_CODE)" >> "$GITHUB_STEP_SUMMARY"
+            if [ -f "${{ inputs.sarif-file }}" ]; then
+              echo "Detailed AST findings recorded to \`${{ inputs.sarif-file }}\`." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+        fi
+
+        if [ "${{ inputs.enforce }}" = "true" ]; then
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::error::agent-proctor policy violation detected (exit code $EXIT_CODE). PR blocked."
+            exit $EXIT_CODE
+          fi
+        else
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::warning::agent-proctor detected violations (exit code $EXIT_CODE). Running in Observe Mode (enforce=false), so CI continues without blocking."
+          fi
+          exit 0
+        fi

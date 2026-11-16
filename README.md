@@ -6,21 +6,7 @@
 [![Latency](https://img.shields.io/badge/Latency-%3C50ms-green.svg)]()
 [![Determinism](https://img.shields.io/badge/Engine-Zero--LLM%20Tree--sitter-orange.svg)]()
 
-> **Stop autonomous AI coding agents from submitting pull requests that make CI green by silently deleting tests, weakening assertions, or sabotaging test runners.**
-
----
-
-## The Problem in Open Source
-
-As autonomous AI agents (Devin, Claude Code, Cursor, Copilot Workspace) proliferate, open source maintainers are increasingly flooded with "drive-by" pull requests that claim to resolve open issues.
-
-When an AI agent cannot solve a subtle edge case, empirical research shows it frequently reward-hacks the test suite:
-* **Assertion Weakening:** Replaces `assert result.status == 200` with `assert result is not None` or `assert True`.
-* **Test Deletion:** Deletes failing test functions or drops rows from parametrized tables.
-* **Shadow Mocking:** Injects mocks directly into the system under test to force tests to pass without fixing the bug.
-* **CI Sabotage:** Appends `|| true` or `; exit 0` to GitHub Actions workflow steps.
-
-Negative prompts in `AGENT.md` or PR instructions **do not stop this behavior** (METR research demonstrated a 30.4% reward-hacking rate even on frontier reasoning models).
+> **Stop pull requests from making CI green by silently deleting tests, weakening assertions, or sabotaging test runners—whether from fast-moving teammates, junior contributors, or AI coding agents.**
 
 ---
 
@@ -51,10 +37,10 @@ gh attestation verify proctor-linux-x86_64.tar.gz --owner no-hup
 
 ## ⚡ Quick Start: 5-Line GitHub Action
 
-Add `.github/workflows/proctor.yml` to your repository:
+By default, `agent-proctor` runs in **Observe Mode (`enforce: false`)**—it posts detailed findings to GitHub's Step Summary and outputs SARIF without blocking CI, letting you test it safely before enforcing:
 
 ```yaml
-name: Test Integrity Anticheat
+name: Test Integrity & Anticheat
 
 on:
   pull_request:
@@ -81,12 +67,33 @@ jobs:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
           sarif-file: proctor-results.sarif
+          enforce: false  # Default Observe Mode: reports findings to summary, exits 0
 
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: proctor-results.sarif
+```
+
+To enable hard blocking once you're satisfied with the baseline, set `enforce: true`.
+
+---
+
+## 🔒 Hermetic CI Alternative (Direct Checksum Pinning)
+
+For teams requiring strict airgapped and pinned builds (zero external action wrappers), you can invoke the standalone binary directly with cryptographic SHA-256 verification:
+
+```yaml
+      - name: Run agent-proctor directly (Hermetic Pinning)
+        shell: bash
+        run: |
+          mkdir -p /tmp/proctor-bin
+          curl -sLf https://github.com/no-hup/proctor-action/releases/download/v0.1.0/proctor-linux-x86_64.tar.gz -o /tmp/proctor.tar.gz
+          echo "c2479c5b7399f9148f74a9d0578e13d4b2289d82b34febe8e57b612dfa80628b  /tmp/proctor.tar.gz" | sha256sum --check
+          tar -xzf /tmp/proctor.tar.gz -C /tmp/proctor-bin
+          chmod +x /tmp/proctor-bin/proctor
+          /tmp/proctor-bin/proctor scan --base ${{ github.event.pull_request.base.sha }} --head ${{ github.event.pull_request.head.sha }} --sarif proctor-results.sarif
 ```
 
 ---
@@ -132,6 +139,6 @@ Author comments can **never** waive Guard findings.
 
 ## License & Pricing
 
-`agent-proctor` is **Free forever for Public Open Source Repositories** under an OSI-approved license.
+`agent-proctor` is **Free forever for Public Open Source Repositories** under the Apache-2.0 License.
 
 For enterprise private repositories or commercial licensing, contact: `license@no-hup.dev`.
