@@ -1,0 +1,49 @@
+PROCTOR SOFTWARE LICENSE
+Version 1.0 (Community & Commercial License)
+
+Copyright (c) 2026 The Proctor Team (no-hup). All rights reserved.
+
+==============================================================================
+1. GRANT OF LICENSE FOR OPEN SOURCE AND INDIVIDUAL USE
+==============================================================================
+Subject to the terms and conditions of this License, The Proctor Team grants you
+a non-exclusive, worldwide, royalty-free license to download, install, execute,
+and integrate the precompiled binaries of Proctor ("Software") solely for:
+
+  a) Public Open Source Projects: Running the Software in automated CI/CD
+     pipelines (such as GitHub Actions) on public repositories whose code is
+     licensed under an Open Source Initiative (OSI)-approved license.
+  
+  b) Individual Personal Use: Running the Software on local development
+     machines for personal, non-commercial purposes.
+
+==============================================================================
+2. COMMERCIAL & ENTERPRISE RESTRICTIONS
+==============================================================================
+Any use of the Software within private repositories, enterprise organizations,
+commercial products, closed-source projects, or as part of a hosted commercial
+service requires a separate Commercial License from The Proctor Team.
+
+If you are an enterprise organization or intend to run Proctor on private
+commercial repositories, please contact: license@no-hup.dev
+
+==============================================================================
+3. RESTRICTIONS
+==============================================================================
+You may not:
+  a) Reverse engineer, decompile, disassemble, or attempt to derive the source
+     code of the Software or any underlying detection lattices.
+  b) Resell, sublicense, rent, lease, or distribute the Software as a hosted
+     commercial service or competing anticheat product.
+  c) Modify or remove any copyright, trademark, or proprietary notices.
+
+==============================================================================
+4. DISCLAIMER OF WARRANTY & LIMITATION OF LIABILITY
+==============================================================================
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

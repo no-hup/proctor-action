@@ -1,0 +1,129 @@
+name: 'agent-proctor'
+description: 'Deterministic PR integrity and anticheat gate for autonomous AI coding agents'
+author: 'The Proctor Team'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  base-ref:
+    description: 'Base git commit SHA or branch to compare against'
+    required: false
+    default: ${{ github.event.pull_request.base.sha || github.base_ref || 'origin/main' }}
+  head-ref:
+    description: 'Head git commit SHA or branch'
+    required: false
+    default: ${{ github.event.pull_request.head.sha || github.sha || 'HEAD' }}
+  strict:
+    description: 'Treat Report findings as hard BLOCK (exit 1) for autonomous agent PRs'
+    required: false
+    default: 'false'
+  experimental-probe:
+    description: 'Run ephemeral mutation probe in an isolated git worktree'
+    required: false
+    default: 'false'
+  sarif-file:
+    description: 'File path to write SARIF 2.1.0 output'
+    required: false
+    default: 'proctor-results.sarif'
+  github-token:
+    description: 'GitHub token for reviewer waiver verification'
+    required: false
+    default: ${{ github.token }}
+  version:
+    description: 'agent-proctor release version to download'
+    required: false
+    default: 'v0.1.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch PR commit objects
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.base-ref }}" ] && [ "${{ inputs.base-ref }}" != "origin/main" ]; then
+          git fetch --depth=1 origin "${{ inputs.base-ref }}" || true
+        fi
+        if [ -n "${{ inputs.head-ref }}" ] && [ "${{ inputs.head-ref }}" != "HEAD" ]; then
+          git fetch --depth=1 origin "${{ inputs.head-ref }}" || true
+        fi
+
+    - name: Verify GitHub-attested reviewer waivers & acks
+      id: waivers
+      shell: bash
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        if [ -n "$PR_NUMBER" ]; then
+          # Extract review_mode strictly from base policy to prevent PR tampering
+          REVIEW_MODE="ack"
+          if git cat-file -e "${{ inputs.base-ref }}:proctor.toml" 2>/dev/null; then
+            MODE_EXTRACT=$(git show "${{ inputs.base-ref }}:proctor.toml" | grep -E '^review_mode\s*=' | sed -E 's/review_mode\s*=\s*["'"'"']([^"'"'"']+)["'"'"'].*/\1/' || true)
+            if [ -n "$MODE_EXTRACT" ]; then
+              REVIEW_MODE="$MODE_EXTRACT"
+            fi
+          elif git cat-file -e "${{ inputs.base-ref }}:.proctor.toml" 2>/dev/null; then
+            MODE_EXTRACT=$(git show "${{ inputs.base-ref }}:.proctor.toml" | grep -E '^review_mode\s*=' | sed -E 's/review_mode\s*=\s*["'"'"']([^"'"'"']+)["'"'"'].*/\1/' || true)
+            if [ -n "$MODE_EXTRACT" ]; then
+              REVIEW_MODE="$MODE_EXTRACT"
+            fi
+          fi
+          export PROCTOR_REVIEW_MODE="$REVIEW_MODE"
+
+          WAIVERS=$(python3 ${{ github.action_path }}/scripts/fetch_waivers.py)
+          echo "verified_waivers=$WAIVERS" >> $GITHUB_OUTPUT
+          if [ -n "$WAIVERS" ]; then
+            echo "proctor: Active attested reviewer waivers: $WAIVERS"
+          fi
+        else
+          echo "verified_waivers=" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install agent-proctor release binary
+      shell: bash
+      run: |
+        if command -v proctor &> /dev/null; then
+          exit 0
+        fi
+        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        ARCH="$(uname -m)"
+        if [ "$ARCH" = "x86_64" ]; then
+          TARGET="x86_64"
+        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+          TARGET="aarch64"
+        else
+          TARGET="x86_64"
+        fi
+
+        # Download precompiled binary from public release asset
+        URL="https://github.com/no-hup/proctor-action/releases/download/${{ inputs.version }}/proctor-${OS}-${TARGET}.tar.gz"
+        mkdir -p /tmp/proctor-bin
+        if curl -sLf "$URL" -o /tmp/proctor.tar.gz; then
+          tar -xzf /tmp/proctor.tar.gz -C /tmp/proctor-bin
+          chmod +x /tmp/proctor-bin/proctor
+          echo "/tmp/proctor-bin" >> $GITHUB_PATH
+          echo "proctor: Downloaded precompiled binary from $URL"
+        else
+          echo "::error::agent-proctor precompiled release binary could not be downloaded from $URL. Please verify inputs.version ('${{ inputs.version }}') or ensure a release asset exists for $OS-$TARGET."
+          exit 1
+        fi
+
+    - name: Run agent-proctor scan
+      shell: bash
+      env:
+        PROCTOR_VERIFIED_WAIVERS: ${{ steps.waivers.outputs.verified_waivers }}
+      run: |
+        ARGS="--base ${{ inputs.base-ref }} --head ${{ inputs.head-ref }} --sarif ${{ inputs.sarif-file }}"
+        
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          ARGS="$ARGS --strict"
+        fi
+        
+        if [ "${{ inputs.experimental-probe }}" = "true" ]; then
+          ARGS="$ARGS --experimental-probe"
+        fi
+
+        proctor scan $ARGS
