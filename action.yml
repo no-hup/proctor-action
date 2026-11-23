@@ -27,6 +27,10 @@ inputs:
     description: 'Run ephemeral mutation probe in an isolated git worktree'
     required: false
     default: 'false'
+  verify:
+    description: 'Run dynamic red/green regression verification (executes changed tests against base code)'
+    required: false
+    default: 'false'
   sarif-file:
     description: 'File path to write SARIF 2.1.0 output'
     required: false
@@ -128,6 +132,14 @@ runs:
         
         if [ "${{ inputs.experimental-probe }}" = "true" ]; then
           ARGS="$ARGS --experimental-probe"
+        fi
+
+        if [ "${{ inputs.verify }}" = "true" ]; then
+          ARGS="$ARGS --verify"
+        fi
+
+        if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+          ARGS="$ARGS --receipt $GITHUB_STEP_SUMMARY"
         fi
 
         EXIT_CODE=0
