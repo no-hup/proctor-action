@@ -113,6 +113,20 @@ Under `--strict`, any assertion modifications coincident with production code ch
 
 ---
 
+## 🧪 Dynamic Red/Green Verification (`verify: 'true'` — Experimental)
+
+> **Experimental:** Off by default (`verify: 'false'`). Enable only on trusted `pull_request` workflows after installing dependencies (`npm ci` / `pip install`). Refused automatically under `pull_request_target`.
+
+When enabled, `agent-proctor` verifies added and modified tests by running each test twice on `head`, temporarily swapping modified production files back to `base`, running twice on `base` (using pytest `--junitxml` or Jest/Vitest `--json`), and restoring the checkout:
+
+- **Discriminating**: Passed 2x on `head` and failed 2x on `base` with an assertion failure.
+- **Does not discriminate**: Passed on both `head` and `base`.
+- **Missing on base**: Failed on `base` due to an import or missing-symbol error.
+- **Broken**: Failed on `head`.
+- **Inconclusive**: Timed out, flaky, dependency manifest changed, or setup/runner error (never alters exit code).
+
+---
+
 ## Detection Rules & Specifications
 
 For the complete specification of all detection invariants (`PROCTOR-001` through `PROCTOR-007`), see our [Rules Catalog](RULES_CATALOG.md).

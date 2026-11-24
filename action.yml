@@ -28,7 +28,7 @@ inputs:
     required: false
     default: 'false'
   verify:
-    description: 'Run dynamic red/green regression verification (executes changed tests against base code)'
+    description: 'Experimental: run dynamic red/green verification (run after npm ci / pip install; refused on pull_request_target)'
     required: false
     default: 'false'
   sarif-file:
@@ -135,7 +135,11 @@ runs:
         fi
 
         if [ "${{ inputs.verify }}" = "true" ]; then
-          ARGS="$ARGS --verify"
+          if [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            echo "::warning::agent-proctor refused verify=true under pull_request_target to prevent running untrusted PR code with repository secrets."
+          else
+            ARGS="$ARGS --verify"
+          fi
         fi
 
         if [ -n "$GITHUB_STEP_SUMMARY" ]; then
