@@ -3,10 +3,12 @@
 [![Free for Open Source](https://img.shields.io/badge/License-Free%20for%20Open%20Source-blue.svg)](LICENSE)
 [![Zero Network Egress](https://img.shields.io/badge/Network-Zero--Egress%20Airgapped-success.svg)](#security-privacy--zero-egress-guarantees)
 [![GitHub Sigstore Attestation](https://img.shields.io/badge/Provenance-GitHub%20Sigstore%20Verified-blue.svg)](#cryptographic-build-provenance)
-[![Latency](https://img.shields.io/badge/Latency-%3C50ms-green.svg)]()
+[![Latency](https://img.shields.io/badge/Latency-%3C200ms-green.svg)]()
 [![Determinism](https://img.shields.io/badge/Engine-Zero--LLM%20Tree--sitter-orange.svg)]()
 
-> **Stop pull requests from making CI green by silently deleting tests, weakening assertions, or sabotaging test runners—whether from fast-moving teammates, junior contributors, or AI coding agents.**
+> **Prove your new tests fail on `base` and pass on `head` — and confirm existing test contracts stay intact.**
+
+Every PR reviewer wants one clear answer before hitting merge: *"Do the new tests actually catch the bug, and did our existing tests keep their guarantees?"* `agent-proctor` runs fast static AST checks by default (`<200ms`), and can optionally execute added/modified tests against the base commit (`verify: 'true'`, experimental) to attach executable proof directly to `$GITHUB_STEP_SUMMARY`.
 
 ---
 
@@ -35,12 +37,12 @@ gh attestation verify proctor-linux-x86_64.tar.gz --owner no-hup
 
 ---
 
-## ⚡ Quick Start: 5-Line GitHub Action
+## ⚡ Quick Start: Add to Any PR Workflow
 
-By default, `agent-proctor` runs in **Observe Mode (`enforce: false`)**—it posts detailed findings to GitHub's Step Summary and outputs SARIF without blocking CI, letting you test it safely before enforcing:
+By default, `agent-proctor` runs static diff checks quietly in **Observe Mode (`enforce: false`)** — posting a concise summary receipt to `$GITHUB_STEP_SUMMARY` without failing CI. Set `verify: 'true'` *(experimental)* after your dependency install step to prove new tests reproduce the bug on `base`:
 
 ```yaml
-name: Test Integrity & Anticheat
+name: Test Proof & Integrity
 
 on:
   pull_request:
@@ -53,7 +55,7 @@ permissions:
 
 jobs:
   proctor:
-    name: Proctor PR Anticheat
+    name: Proctor Test Summary
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -61,13 +63,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run agent-proctor anticheat gate
+      # Optional: install dependencies first if enabling verify: 'true'
+      - name: Run agent-proctor
         uses: no-hup/proctor-action@v1
         with:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
           sarif-file: proctor-results.sarif
-          enforce: false  # Default Observe Mode: reports findings to summary, exits 0
+          verify: 'false'   # Set 'true' (after npm ci / pip install) to test new tests against base
+          enforce: 'false'  # Default Observe Mode: reports summary, exits 0
 
       - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
@@ -98,24 +102,9 @@ For teams requiring strict airgapped and pinned builds (zero external action wra
 
 ---
 
-## Autonomous Agent Mode (`strict: 'true'`)
-
-For unattended, automated agent PRs (e.g. sweep bots, Devin, OpenHands), configure `strict: 'true'`:
-
-```yaml
-      - name: Run agent-proctor anticheat gate
-        uses: no-hup/proctor-action@v1
-        with:
-          strict: 'true'  # Enforce exit 1 on Report findings for automated bots
-```
-
-Under `--strict`, any assertion modifications coincident with production code changes require an explicit author acknowledgment or maintainer waiver before merging.
-
----
-
 ## 🧪 Dynamic Red/Green Verification (`verify: 'true'` — Experimental)
 
-> **Experimental:** Off by default (`verify: 'false'`). Enable only on trusted `pull_request` workflows after installing dependencies (`npm ci` / `pip install`). Refused automatically under `pull_request_target`.
+> **Experimental:** Off by default (`verify: 'false'`). Enable only on trusted `pull_request` workflows **after** installing dependencies (`npm ci` / `pip install`). Refused automatically under `pull_request_target`.
 
 When enabled, `agent-proctor` verifies added and modified tests by running each test twice on `head`, temporarily swapping modified production files back to `base`, running twice on `base` (using pytest `--junitxml` or Jest/Vitest `--json`), and restoring the checkout:
 
@@ -124,6 +113,21 @@ When enabled, `agent-proctor` verifies added and modified tests by running each 
 - **Missing on base**: Failed on `base` due to an import or missing-symbol error.
 - **Broken**: Failed on `head`.
 - **Inconclusive**: Timed out, flaky, dependency manifest changed, or setup/runner error (never alters exit code).
+
+---
+
+## Strict Mode (`strict: 'true'`)
+
+For automated unattended PRs, configure `strict: 'true'`:
+
+```yaml
+      - name: Run agent-proctor
+        uses: no-hup/proctor-action@v1
+        with:
+          strict: 'true'  # Enforce exit 1 on Report findings
+```
+
+Under `--strict`, assertion modifications coincident with production code changes require an explicit author acknowledgement or maintainer waiver before merging.
 
 ---
 

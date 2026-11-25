@@ -1,5 +1,5 @@
 name: 'agent-proctor'
-description: 'Deterministic PR integrity and anticheat gate for autonomous AI coding agents'
+description: 'Prove PR tests catch bugs on base and keep existing test contracts intact — zero-egress, deterministic'
 author: 'The Proctor Team'
 
 branding:
@@ -42,7 +42,7 @@ inputs:
   version:
     description: 'agent-proctor release version to download'
     required: false
-    default: 'v0.2.0'
+    default: 'v0.2.1'
 
 runs:
   using: 'composite'
