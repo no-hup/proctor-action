@@ -169,3 +169,71 @@ jobs:
             exit 1
           fi
           echo "Enforce Mode successfully blocked the PR (outcome=failure)."
+
+  test-verify-mode:
+    name: Test Dynamic Verify Mode (verify=true -> Catches change)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python and pytest
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: python -m pip install pytest
+
+      - name: Set up git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create buggy base commit
+        run: |
+          git checkout -b fixture-base-ver
+          mkdir -p app tests
+          touch app/__init__.py
+          cat << 'EOF' > app/math_mod.py
+          def add(a, b):
+              return a - b
+          EOF
+          git add app
+          git commit -m "chore: buggy base"
+
+      - name: Create fix + test commit
+        run: |
+          git checkout -b fixture-head-ver
+          cat << 'EOF' > app/math_mod.py
+          def add(a, b):
+              return a + b
+          EOF
+          cat << 'EOF' > tests/test_math_mod.py
+          from app.math_mod import add
+
+          def test_add():
+              assert add(2, 3) == 5
+          EOF
+          git add app tests
+          git commit -m "fix: add numbers"
+
+      - name: Run agent-proctor with verify=true
+        uses: ./
+        with:
+          base-ref: fixture-base-ver
+          head-ref: fixture-head-ver
+          verify: 'true'
+          enforce: 'true'
+          sarif-file: verify-results.sarif
+
+      - name: Verify dynamic receipt contains Catches change
+        run: |
+          cat "$GITHUB_STEP_SUMMARY"
+          if ! grep -q "Catches change" "$GITHUB_STEP_SUMMARY"; then
+            echo "Error: Expected Dynamic Test Verification Receipt to contain 'Catches change'!"
+            exit 1
+          fi
+          echo "Verify Mode succeeded cleanly."
