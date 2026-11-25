@@ -149,60 +149,7 @@ runs:
         EXIT_CODE=0
         proctor scan $ARGS || EXIT_CODE=$?
 
-        # Emit concise GitHub workflow annotations + headline banner under read-only perms
-        python3 - "${{ inputs.sarif-file }}" "${GITHUB_STEP_SUMMARY:-}" "$EXIT_CODE" << 'PYEOF'
-import json, os, sys
-
-sarif_path, summary_path, exit_code = sys.argv[1], sys.argv[2], int(sys.argv[3])
-guard_count = 0
-report_count = 0
-
-if os.path.exists(sarif_path):
-    try:
-        with open(sarif_path) as f:
-            sarif = json.load(f)
-        results = (sarif.get("runs") or [{}])[0].get("results", [])
-        for r in results:
-            lvl = r.get("level", "warning")
-            if lvl == "error":
-                guard_count += 1
-            elif lvl == "warning":
-                report_count += 1
-
-        # Emit up to 10 file-level annotations so GitHub UI never drops them silently
-        for r in results[:10]:
-            lvl = "error" if r.get("level") == "error" else "warning"
-            rule = r.get("ruleId", "PROCTOR")
-            msg = (r.get("message") or {}).get("text", "").replace("\n", " ")
-            loc = (r.get("locations") or [{}])[0].get("physicalLocation", {})
-            uri = (loc.get("artifactLocation") or {}).get("uri", "")
-            line = (loc.get("region") or {}).get("startLine")
-            meta = f"file={uri}" if uri else ""
-            if meta and line:
-                meta += f",line={line}"
-            prefix = f"::{lvl} {meta}::" if meta else f"::{lvl}::"
-            print(f"{prefix}[{rule}] {msg}")
-    except Exception as exc:
-        print(f"::warning title=proctor: SARIF parse warning::{exc}")
-
-verify_note = ""
-if summary_path and os.path.exists(summary_path):
-    try:
-        txt = open(summary_path).read()
-        if "Dynamic Test Verification Receipt" in txt:
-            catches = txt.count("| 🛡️ **Catches change** |")
-            passes_both = txt.count("| ⚪ **Passes on both** |")
-            broken = txt.count("| ❌ **Broken** |")
-            if any((catches, passes_both, broken)):
-                verify_note = f" | verify: {catches} catches change, {passes_both} passes on both, {broken} broken"
-    except Exception:
-        pass
-
-if guard_count == 0 and report_count == 0 and exit_code == 0:
-    print(f"::notice title=proctor: Clean test diff{verify_note}::No test tampering or assertion loosening detected.")
-else:
-    print(f"::warning title=proctor: {guard_count} guard, {report_count} review{verify_note}::Inspect Test-Change Receipt in Job Summary or SARIF.")
-PYEOF
+        python3 "${{ github.action_path }}/scripts/emit_annotations.py" "${{ inputs.sarif-file }}" "${GITHUB_STEP_SUMMARY:-}" "$EXIT_CODE" || true
 
         if [ "${{ inputs.enforce }}" = "true" ]; then
           if [ "$EXIT_CODE" -ne 0 ]; then
