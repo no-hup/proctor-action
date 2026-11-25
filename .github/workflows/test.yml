@@ -231,9 +231,10 @@ jobs:
 
       - name: Verify dynamic receipt contains Catches change
         run: |
-          cat "$GITHUB_STEP_SUMMARY"
-          if ! grep -q "Catches change" "$GITHUB_STEP_SUMMARY"; then
-            echo "Error: Expected Dynamic Test Verification Receipt to contain 'Catches change'!"
+          proctor verify --base fixture-base-ver --head fixture-head-ver --receipt verify-receipt.md
+          cat verify-receipt.md
+          if ! grep -q "Catches change" verify-receipt.md; then
+            echo "Error: Expected verify-receipt.md to contain 'Catches change'!"
             exit 1
           fi
           echo "Verify Mode succeeded cleanly."
