@@ -108,11 +108,11 @@ For teams requiring strict airgapped and pinned builds (zero external action wra
 
 When enabled, `agent-proctor` verifies added and modified tests by running each test twice on `head`, temporarily swapping modified production files back to `base`, running twice on `base` (using pytest `--junitxml` or Jest/Vitest `--json`), and restoring the checkout:
 
-- **Discriminating**: Passed 2x on `head` and failed 2x on `base` with an assertion failure.
-- **Does not discriminate**: Passed on both `head` and `base`.
-- **Missing on base**: Failed on `base` due to an import or missing-symbol error.
-- **Broken**: Failed on `head`.
-- **Inconclusive**: Timed out, flaky, dependency manifest changed, or setup/runner error (never alters exit code).
+- **Catches change (`Discriminating` in JSON)**: Passed 2x on `head` and failed 2x on `base` with an assertion failure.
+- **Passes on both (`DoesNotDiscriminate` in JSON)**: Passed on both `head` and `base` (normal for refactor/coverage tests; review if testing a bugfix).
+- **Missing on base (`MissingOnBase` in JSON)**: Failed on `base` due to an import or missing-symbol error.
+- **Broken (`Broken` in JSON)**: Failed on `head`.
+- **Inconclusive (`Inconclusive` in JSON)**: Timed out, flaky, dependency manifest changed, or setup/runner error (never alters exit code).
 
 ---
 
