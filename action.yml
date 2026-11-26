@@ -39,10 +39,14 @@ inputs:
     description: 'GitHub token for reviewer waiver verification'
     required: false
     default: ${{ github.token }}
+  protect-existing-tests:
+    description: 'Policy mode (agent loops/evals): block any modification/deletion of pre-existing assertions'
+    required: false
+    default: 'false'
   version:
     description: 'agent-proctor release version to download'
     required: false
-    default: 'v0.2.2'
+    default: 'v0.2.3'
 
 runs:
   using: 'composite'
@@ -128,6 +132,10 @@ runs:
         
         if [ "${{ inputs.strict }}" = "true" ]; then
           ARGS="$ARGS --strict"
+        fi
+
+        if [ "${{ inputs.protect-existing-tests }}" = "true" ]; then
+          ARGS="$ARGS --protect-existing-tests"
         fi
         
         if [ "${{ inputs.experimental-probe }}" = "true" ]; then

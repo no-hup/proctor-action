@@ -67,18 +67,26 @@ def main() -> int:
             print(f"::warning title=proctor SARIF warning::{escape_cmd_value(str(exc))}")
 
     verify_parts = []
+    changed_asserts_count = 0
     if summary_path and os.path.exists(summary_path):
         try:
             with open(summary_path, encoding="utf-8") as f:
                 txt = f.read()
+            import re
+            m_chg = re.search(r"Changed pre-existing assertions \((\d+)\)", txt)
+            if m_chg:
+                changed_asserts_count = int(m_chg.group(1))
             if "Dynamic Test Verification Receipt" in txt:
                 catches = txt.count("| 🛡️ **Catches change** |")
                 missing = txt.count("| ⚠️ **Missing on base** |")
                 passes_both = txt.count("| ⚪ **Passes on both** |")
                 broken = txt.count("| ❌ **Broken** |")
                 inconclusive = txt.count("| ℹ️ **Inconclusive** |")
+                contract_changed = txt.count("⚠️ old assertion fails on head:")
                 if catches:
                     verify_parts.append(f"{catches} catches change")
+                if contract_changed:
+                    verify_parts.append(f"{contract_changed} changed passing contract")
                 if passes_both:
                     verify_parts.append(f"{passes_both} passes on both")
                 if missing:
@@ -91,11 +99,16 @@ def main() -> int:
             pass
 
     verify_note = f" | verify: {', '.join(verify_parts)}" if verify_parts else ""
+    assert_note = (
+        f" | {changed_asserts_count} pre-existing assertion(s) changed"
+        if changed_asserts_count
+        else ""
+    )
     if guard_count == 0 and report_count == 0 and exit_code == 0:
-        title = escape_prop(f"proctor: Clean test diff{verify_note}")
+        title = escape_prop(f"proctor: Clean test diff{assert_note}{verify_note}")
         print(f"::notice title={title}::No test tampering or assertion loosening detected.")
     else:
-        title = escape_prop(f"proctor: {guard_count} guard, {report_count} review{verify_note}")
+        title = escape_prop(f"proctor: {guard_count} guard, {report_count} review{assert_note}{verify_note}")
         print(f"::warning title={title}::Inspect Test-Change Receipt in Job Summary or SARIF.")
 
     return 0

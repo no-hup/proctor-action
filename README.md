@@ -93,8 +93,8 @@ For teams requiring strict airgapped and pinned builds (zero external action wra
         shell: bash
         run: |
           mkdir -p /tmp/proctor-bin
-          curl -sLf https://github.com/no-hup/agent-proctor/releases/download/v0.2.2/proctor-linux-x86_64.tar.gz -o /tmp/proctor.tar.gz
-          echo "6a63bcea2f9d119de55ba4b941e582e48308cc799174c8bac23412270cb308d0  /tmp/proctor.tar.gz" | sha256sum --check
+          curl -sLf https://github.com/no-hup/agent-proctor/releases/download/v0.2.3/proctor-linux-x86_64.tar.gz -o /tmp/proctor.tar.gz
+          echo "ccd01ef59a6ee13763f295784f9ac663bb661b045dd61459955d93d2024fb420  /tmp/proctor.tar.gz" | sha256sum --check
           tar -xzf /tmp/proctor.tar.gz -C /tmp/proctor-bin
           chmod +x /tmp/proctor-bin/proctor
           /tmp/proctor-bin/proctor scan --base ${{ github.event.pull_request.base.sha }} --head ${{ github.event.pull_request.head.sha }} --sarif proctor-results.sarif
